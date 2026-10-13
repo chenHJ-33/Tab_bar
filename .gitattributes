@@ -1,6 +1,10 @@
 # 统一使用 LF，避免 Windows 下换行符造成的无意义 diff
 * text=auto eol=lf
 
+# Windows 批处理必须是 CRLF，否则 cmd.exe 解析会出错
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
 *.png binary
 *.jpg binary
 *.jpeg binary
