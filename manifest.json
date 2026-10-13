@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "常驻书签栏新标签页",
+  "version": "1.0.0",
+  "description": "新标签页顶部常驻一条书签栏：文件夹下拉、网站图标、书签改动实时同步。",
+  "permissions": [
+    "bookmarks",
+    "favicon",
+    "search",
+    "storage"
+  ],
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["_favicon/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

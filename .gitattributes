@@ -1,0 +1,9 @@
+# 统一使用 LF，避免 Windows 下换行符造成的无意义 diff
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary

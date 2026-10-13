@@ -1,0 +1,16 @@
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# 依赖与构建产物
+node_modules/
+dist/
+*.zip
+*.crx
+*.pem
+
+# 日志
+*.log
