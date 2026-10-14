@@ -22,7 +22,7 @@ echo    Ä¿±ê   : %~dp0dist
 echo.
 
 robocopy "%~dp0." "%~dp0dist" /MIR ^
-  /XD ".git" "dist" "node_modules" ^
+  /XD ".git" "dist" "node_modules" "dev" ^
   /XF "README.md" ".gitignore" ".gitattributes" "publish.bat" "*.txt" ^
   /NJH /NJS /NDL /NFL /NP
 

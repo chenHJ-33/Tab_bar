@@ -3,6 +3,8 @@
 // ============================================================
 
 import { setBarIconOnly } from './bar.js';
+import { initTranslate } from './translate.js';
+import { createSuggest, DEFAULT_SUGGEST_SETTINGS } from './suggest.js';
 
 // ---------- 壁纸预设 ----------
 
@@ -130,6 +132,7 @@ const DEFAULT_SETTINGS = {
   barIconOnly: false,
   engine: 'default',
   customEngine: '',
+  suggest: Object.assign({}, DEFAULT_SUGGEST_SETTINGS),
 };
 
 const DEFAULT_ICONS = [
@@ -173,6 +176,8 @@ function loadState() {
       const s = (o && o.settings) || {};
       state.settings = Object.assign({}, DEFAULT_SETTINGS, s);
       state.settings.wallpaper = Object.assign({}, DEFAULT_SETTINGS.wallpaper, s.wallpaper || {});
+      // 老版本存的设置里没有 suggest 这一项，补上默认值
+      state.settings.suggest = Object.assign({}, DEFAULT_SUGGEST_SETTINGS, s.suggest || {});
       state.icons = (o && Array.isArray(o.icons)) ? o.icons : DEFAULT_ICONS.slice();
       state.wallpapers = (o && Array.isArray(o.wallpapers)) ? o.wallpapers : [];
       resolve();
@@ -230,6 +235,15 @@ function setEngineHint(text) {
   if (hint) hint.textContent = text;
 }
 
+function setSuggestHint(text) {
+  const hint = $('sugHint');
+  if (!hint) return;
+  // 恢复默认文案时要连 <code> 标签一起还原，所以记下最初的 HTML
+  if (hint.dataset.defaultHtml === undefined) hint.dataset.defaultHtml = hint.innerHTML;
+  if (text) hint.textContent = text;
+  else hint.innerHTML = hint.dataset.defaultHtml;
+}
+
 function looksLikeUrl(s) {
   if (/^https?:\/\//i.test(s)) return true;
   if (/^(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(s)) return true;
@@ -281,6 +295,9 @@ function doSearch(raw) {
   const q = String(raw || '').trim();
   if (!q) return;
 
+  closeSuggest();
+  if (suggest) suggest.remember(q);   // 记进最近搜索
+
   if (looksLikeUrl(q)) {
     location.href = normalizeUrl(q);
     return;
@@ -313,6 +330,13 @@ function doSearch(raw) {
 
 let engineMenuEl = null;
 
+// 搜索联想面板（在 bindSearch 里创建）
+let suggest = null;
+
+function closeSuggest() {
+  if (suggest) suggest.close();
+}
+
 function placeBelow(menu, trigger) {
   menu.hidden = false;
   menu.style.visibility = 'hidden';
@@ -344,6 +368,8 @@ function closeEngineMenu() {
 
 function openEngineMenu() {
   if (engineMenuEl) { closeEngineMenu(); return; }
+
+  closeSuggest();
 
   const btn = $('engineBtn');
   const menu = document.createElement('div');
@@ -949,20 +975,66 @@ function bindSettings() {
 function bindSearch() {
   const form = $('searchForm');
   const input = $('searchInput');
+  const panel = $('suggestPanel');
 
   if (form && input) {
     form.addEventListener('submit', function (e) {
       e.preventDefault();
+      // 键盘选中的候选词已经填进输入框了，这里直接按输入框内容搜
       doSearch(input.value);
     });
   }
 
   on('engineBtn', 'click', function (e) {
     e.stopPropagation();
+    closeSuggest();
     openEngineMenu();
   });
 
-  if (input) input.focus();
+  if (input && panel) {
+    suggest = createSuggest({
+      input: input,
+      panel: panel,
+      getEngine: currentEngine,
+      getSettings: function () { return state.settings.suggest; },
+      // 选中候选：
+      //   键盘 Enter → 只把候选词补全进输入框，再按一次 Enter 才搜索
+      //   鼠标点击   → 明确就要这一条，填入并直接搜索
+      onPick: function (text, opt) {
+        input.value = text;
+        closeSuggest();
+        input.focus();
+        if (!opt || opt.search !== false) doSearch(text);
+      }
+    });
+  }
+}
+
+function bindSuggestSettings() {
+  const box = $('sugEnabled');
+  const online = $('sugOnline');
+  const hist = $('sugHistory');
+  if (box) box.checked = !!state.settings.suggest.enabled;
+  if (online) online.checked = !!state.settings.suggest.online;
+  if (hist) hist.checked = !!state.settings.suggest.history;
+
+  function apply(patch) {
+    state.settings.suggest = Object.assign({}, state.settings.suggest, patch);
+    saveSettings();
+    if (suggest) suggest.setSettings(patch);
+  }
+
+  on('sugEnabled', 'change', function (e) { apply({ enabled: e.target.checked }); });
+  on('sugOnline', 'change', function (e) { apply({ online: e.target.checked }); });
+  on('sugHistory', 'change', function (e) {
+    apply({ history: e.target.checked });
+    setSuggestHint(e.target.checked ? '' : '已关闭搜索记录：新的搜索不再被记住，聚焦空输入框也不会弹出候选。');
+  });
+
+  on('sugClear', 'click', function () {
+    if (suggest) suggest.clearHistory();
+    setSuggestHint('搜索记录已清空。');
+  });
 }
 
 function bindAddDialog() {
@@ -989,6 +1061,15 @@ function bindAddDialog() {
 
 function bindGlobal() {
   document.addEventListener('mousedown', function (e) {
+    // 点空白处关掉搜索联想
+    if (suggest && suggest.isOpen()) {
+      const input = $('searchInput');
+      const panel = $('suggestPanel');
+      if (!(input && input.contains(e.target)) && !(panel && panel.contains(e.target))) {
+        closeSuggest();
+      }
+    }
+
     if (!engineMenuEl) return;
     const btn = $('engineBtn');
     if (engineMenuEl.contains(e.target)) return;
@@ -998,13 +1079,17 @@ function bindGlobal() {
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
+      closeSuggest();
       closeEngineMenu();
       const panel = $('settings');
       if (panel) panel.hidden = true;
     }
   });
 
-  window.addEventListener('resize', closeEngineMenu);
+  window.addEventListener('resize', function () {
+    closeEngineMenu();
+    closeSuggest();
+  });
 }
 
 // ============================================================
@@ -1033,6 +1118,7 @@ loadState().then(function () {
 
   bindSettings();
   bindSearch();
+  bindSuggestSettings();
   bindAddDialog();
   bindGlobal();
   bindDrop();
@@ -1040,6 +1126,12 @@ loadState().then(function () {
 
   tickClock();
   setInterval(tickClock, 1000);
+
+  const boot = [];
+  if (suggest) boot.push(suggest.init());   // 读取本地搜索记录
+  boot.push(initTranslate());
+
+  return Promise.all(boot);
 }).catch(function (err) {
   console.error('[新标签页] 初始化失败：', err);
 });

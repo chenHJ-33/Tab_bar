@@ -1,13 +1,22 @@
 {
   "manifest_version": 3,
   "name": "常驻书签栏新标签页",
-  "version": "1.0.0",
-  "description": "新标签页顶部常驻一条书签栏：文件夹下拉、网站图标、书签改动实时同步。",
+  "version": "1.2.0",
+  "description": "新标签页顶部常驻一条书签栏：文件夹下拉、网站图标、书签改动实时同步；搜索框带联想候选与最近搜索；内置百度翻译面板。",
   "permissions": [
     "bookmarks",
     "favicon",
     "search",
     "storage"
+  ],
+  "host_permissions": [
+    "https://fanyi-api.baidu.com/*",
+    "https://www.baidu.com/*",
+    "https://api.bing.com/*",
+    "https://sor.html5.qq.com/*",
+    "https://sug.so.360.cn/*",
+    "https://suggestqueries.google.com/*",
+    "https://duckduckgo.com/*"
   ],
   "chrome_url_overrides": {
     "newtab": "newtab.html"
