@@ -8,6 +8,8 @@ desktop.ini
 # 依赖与构建产物
 node_modules/
 dist/
+# 稳定版备份目录（用于回退），按需再复制
+dist-backup/
 *.zip
 *.crx
 *.pem
