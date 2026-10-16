@@ -85,8 +85,12 @@ const DEFAULTS = {
   key: '',
   from: 'auto',
   to: 'zh',
-  text: '',
 };
+
+// 输入框草稿只存在 sessionStorage：同一个标签页刷新能找回，
+// 新开的标签页各自独立、永远是空的（旧版本存在 chrome.storage.local，
+// 于是每开一个新标签页都会带上一次翻译的残留内容）。
+const DRAFT_KEY = 'translateDraft';
 
 let cfg = Object.assign({}, DEFAULTS);
 
@@ -95,6 +99,11 @@ function loadCfg() {
     chrome.storage.local.get([STORAGE_KEY], function (o) {
       const saved = (o && o[STORAGE_KEY]) || {};
       cfg = Object.assign({}, DEFAULTS, saved);
+      // 老版本把输入框内容一起存进了这里，已经不再使用，顺手清掉
+      if ('text' in cfg) {
+        delete cfg.text;
+        saveCfg();
+      }
       resolve();
     });
   });
@@ -265,7 +274,7 @@ let els = {};
 let translating = false;
 let pendingRun = false;   // 翻译途中又有新输入，结束后补翻
 let debounceTimer = null;
-let textSaveTimer = null;
+let draftTimer = null;
 let lastOutput = '';
 
 function fillSelect(sel, list, value) {
@@ -371,11 +380,26 @@ function scheduleAuto() {
   debounceTimer = setTimeout(doTranslate, DEBOUNCE_MS);
 }
 
-function scheduleTextSave() {
-  clearTimeout(textSaveTimer);
-  textSaveTimer = setTimeout(function () {
-    cfg.text = els.input ? els.input.value : '';
-    saveCfg();
+// 输入框草稿：只写当前标签页的 sessionStorage（换标签页互不影响，新标签页里读不到）
+function readDraft() {
+  try {
+    return sessionStorage.getItem(DRAFT_KEY) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function writeDraft(text) {
+  try {
+    if (text) sessionStorage.setItem(DRAFT_KEY, text);
+    else sessionStorage.removeItem(DRAFT_KEY);
+  } catch (e) { /* 无痕模式等场景下写不了，忽略即可 */ }
+}
+
+function scheduleDraftSave() {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(function () {
+    writeDraft(els.input ? els.input.value : '');
   }, 500);
 }
 
@@ -400,7 +424,7 @@ function swapLangs() {
     els.input.value = lastOutput;
     renderOutput('');
     autoGrow();
-    scheduleTextSave();
+    scheduleDraftSave();
   }
   scheduleAuto();
 }
@@ -432,7 +456,7 @@ function bindPanel() {
   if (els.input) {
     els.input.addEventListener('input', function () {
       autoGrow();
-      scheduleTextSave();
+      scheduleDraftSave();
       scheduleAuto();
     });
 
@@ -523,7 +547,8 @@ export async function initTranslate() {
 
   if (els.appid) els.appid.value = cfg.appid || '';
   if (els.key) els.key.value = cfg.key || '';
-  if (els.input) els.input.value = cfg.text || '';
+  // 新开的标签页 sessionStorage 是空的 → 输入框为空；本标签页刷新则恢复草稿
+  if (els.input) els.input.value = readDraft();
 
   renderOutput('');
   setStatus(cfg.appid && cfg.key ? '' : '未配置密钥', cfg.appid && cfg.key ? '' : 'warn');
