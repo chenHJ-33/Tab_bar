@@ -114,9 +114,11 @@ function buildMenu(nodes) {
       const children = node.children;
       // 只用点击展开：避免鼠标划过时把嵌套文件夹一路全打开
       row.addEventListener('click', function (e) {
+        // 子菜单挂在 row 内部，点在子菜单里的链接会冒泡到这里。
+        // 必须先放行，否则下面的 preventDefault 会把子菜单里链接的跳转一起取消掉。
+        if (row._sub && row._sub.contains(e.target)) return;  // 点在子菜单里，不算展开/收起
         e.preventDefault();
         e.stopPropagation();
-        if (row._sub && row._sub.contains(e.target)) return;  // 点在子菜单里，不算展开/收起
         if (row._sub) {                                       // 已经展开 → 再点一次收起
           closeSub(row);
           return;
