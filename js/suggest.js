@@ -269,6 +269,10 @@ export function createSuggest(opts) {
   let abort = null;
   let hideTimer = null;
   let pendingMove = 0;       // 面板还没出来时按下的 ↑/↓，等候选到了再落实
+  // 新标签页刚打开时的那次自动聚焦：不算「用户想看最近搜索」。
+  // 下拉面板正好压在下面的「常用网站」图标上，一上来就弹会被当成图标被点，
+  // 结果是又搜了一次上次的关键词。只有用户自己操作输入框才弹。
+  let autoFocused = false;
 
   const cache = new Map();   // key: engineId + '\n' + q  →  { t, list }（每个面板各存一份）
 
@@ -604,6 +608,7 @@ export function createSuggest(opts) {
   // ---------- 事件 ----------
 
   function onKeyDown(e) {
+    autoFocused = false;      // 用户已经在键盘操作输入框了
     if (e.isComposing || composing) return;
 
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -659,6 +664,17 @@ export function createSuggest(opts) {
 
     input.addEventListener('focus', function () {
       clearTimeout(hideTimer);
+      // 页面启动时的程序化聚焦先不弹面板：见 autoFocused 的说明
+      if (autoFocused) return;
+      refresh();
+    });
+
+    // 输入框本来就是聚焦状态时，用户点进来不会再触发 focus，
+    // 所以这里补一次：用户真的动了输入框，才把「最近搜索」弹出来
+    input.addEventListener('pointerdown', function () {
+      if (!autoFocused) return;
+      autoFocused = false;
+      clearTimeout(hideTimer);
       refresh();
     });
 
@@ -673,7 +689,9 @@ export function createSuggest(opts) {
     init: function () {
       bind();
       return loadHistory().then(function () {
-        if (input.focus) input.focus();
+        if (!input.focus) return;
+        autoFocused = true;   // 先标记，focus 事件里靠它跳过自动弹面板
+        input.focus();
       });
     },
     refresh: refresh,
